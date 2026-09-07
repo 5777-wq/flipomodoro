@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番茄钟 · 安静的安卓专注计时器</title>
+<meta name="description" content="开源免费的安卓番茄钟：精确到点提醒、多元统计图表、全屏翻页时钟、白噪音。纯本地，无任何网络权限。Capacitor + 原生 Web，仅 4MB。">
+<meta property="og:title" content="番茄钟 · 安静的安卓专注计时器">
+<meta property="og:description" content="开源免费 · 精确提醒 · 数据全在本地 · 全屏翻页时钟">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='36' r='24' fill='%23d97757'/%3E%3Ccircle cx='32' cy='36' r='24' fill='none' stroke='%23b4532a' stroke-width='3'/%3E%3Cpath d='M32 12 L36 4' stroke='%23b4532a' stroke-width='4' stroke-linecap='round'/%3E%3Cellipse cx='22' cy='12' rx='9' ry='4' fill='%237a968d' transform='rotate(38 22 12)'/%3E%3Cellipse cx='41' cy='10' rx='9' ry='4' fill='%237a968d' transform='rotate(-30 41 10)'/%3E%3Cpath d='M32 36 L23 28' stroke='%23f6f3ec' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M32 36 L40 22' stroke='%23f6f3ec' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Noto+Serif+SC:wght@500;600&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================
+   设计令牌 —— 对齐 Anthropic 品牌亮色系
+   ============================================ */
+:root {
+  --bg: #faf9f5;
+  --bg-alt: #f0eee6;
+  --bg-deep: #e8e6dc;
+  --ink: #141413;
+  --ink-2: #3d3d3a;
+  --ink-3: #5e5d59;
+  --line: #d1cfc5;
+  --accent: #d97757;
+  --accent-deep: #c6613f;
+  --accent-soft: #ebdbbc;
+  --flip-bg: #050505;
+  --flip-digit: #f5f0e8;
+
+  --font-display: "Fraunces", "Noto Serif SC", Georgia, "Songti SC", serif;
+  --font-body: "Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-num: "Fraunces", "Noto Serif SC", Georgia, serif;
+
+  --max-w: 1100px;
+  --d-fast: 150ms;
+  --d-med: 250ms;
+  --d-slow: 400ms;
+  --d-reveal: 600ms;
+  --ease-out: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-std: cubic-bezier(0.2, 0, 0, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--accent-soft); }
+
+.wrap { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+
+/* 小节标签：克制的字距小字 */
+.kicker {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--accent-deep);
+  margin-bottom: 14px;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin-bottom: 14px;
+}
+
+.lead { color: var(--ink-3); max-width: 40em; }
+
+section { padding: clamp(72px, 10vw, 120px) 0; }
+section.alt { background: var(--bg-alt); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+
+/* ============================================
+   滚动浮现：只动 transform / opacity
+   ============================================ */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity var(--d-reveal) var(--ease-std), transform var(--d-reveal) var(--ease-std);
+  transition-delay: calc(var(--i, 0) * 70ms);
+}
+[data-reveal].in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  [data-reveal] { opacity: 1; transform: none; }
+}
+
+/* ============================================
+   导航
+   ============================================ */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(250, 249, 245, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.brand svg { width: 30px; height: 30px; }
+
+.brand .name {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.nav-links { display: flex; align-items: center; gap: 6px; }
+
+.nav-links a {
+  text-decoration: none;
+  color: var(--ink-2);
+  font-size: 15px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  transition: background-color var(--d-fast) var(--ease-std), color var(--d-fast) var(--ease-std);
+}
+.nav-links a:hover { background: var(--bg-deep); color: var(--ink); }
+
+.nav-cta {
+  background: var(--ink) !important;
+  color: var(--bg) !important;
+}
+.nav-cta:hover { background: var(--accent-deep) !important; }
+
+@media (max-width: 640px) {
+  .nav-links a:not(.nav-cta) { display: none; }
+}
+
+/* ============================================
+   Hero
+   ============================================ */
+.hero {
+  padding: clamp(64px, 9vw, 110px) 0 clamp(80px, 10vw, 130px);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: clamp(40px, 6vw, 80px);
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; }
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(38px, 5.6vw, 64px);
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+  margin: 0 0 20px;
+}
+
+.hero h1 em {
+  font-style: normal;
+  color: var(--accent-deep);
+}
+
+.hero .sub {
+  font-size: 18px;
+  color: var(--ink-3);
+  max-width: 30em;
+  margin-bottom: 34px;
+}
+
+.cta-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 999px;
+  padding: 15px 30px;
+  transition: transform var(--d-fast) var(--ease-out),
+              background-color var(--d-fast) var(--ease-std),
+              border-color var(--d-fast) var(--ease-std);
+}
+.btn:active { transform: scale(0.98); }
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-deep); transform: scale(1.02); }
+
+.btn-ghost { border: 1px solid var(--line); color: var(--ink); background: transparent; }
+.btn-ghost:hover { border-color: var(--ink-3); background: var(--bg-alt); }
+
+.btn svg { width: 18px; height: 18px; }
+
+.hero-note {
+  margin-top: 18px;
+  font-size: 13.5px;
+  color: var(--ink-3);
+}
+.hero-note b { color: var(--ink-2); font-weight: 500; }
+
+/* Hero 里的迷你翻页时钟 */
+.flip-stage {
+  background: var(--flip-bg);
+  border-radius: 28px;
+  padding: clamp(36px, 4vw, 56px) clamp(24px, 3vw, 44px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 30px 70px -30px rgba(20, 20, 19, 0.5);
+}
+
+.flip-row { display: flex; align-items: center; }
+
+.flip-card {
+  position: relative;
+  width: clamp(52px, 6.4vw, 76px);
+  height: clamp(84px, 10.4vw, 124px);
+  margin: 0 4px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #171717 0%, #101010 48%, #0c0c0c 52%, #121212 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.flip-card::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  height: 2px;
+  transform: translateY(-1px);
+  background: rgba(0, 0, 0, 0.85);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.flip-card .d {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-num);
+  font-weight: 600;
+  font-size: clamp(44px, 5.6vw, 68px);
+  line-height: 1;
+  color: var(--flip-digit);
+  font-variant-numeric: tabular-nums;
+}
+
+.flip-colon {
+  font-family: var(--font-num);
+  font-size: clamp(30px, 3.8vw, 46px);
+  color: var(--flip-digit);
+  margin: 0 6px;
+  padding-bottom: 6px;
+}
+
+/* 翻页动画：下半张新页翻落 */
+.flip-half {
+  position: absolute;
+  left: 0; right: 0;
+  height: 50%;
+  overflow: hidden;
+  backface-visibility: hidden;
+}
+
+.flip-half.top { top: 0; border-radius: 10px 10px 0 0; }
+.flip-half.bottom { bottom: 0; border-radius: 0 0 10px 10px; }
+
+.flip-half .d { position: static; height: 200%; display: grid; place-items: center;
+  font-family: var(--font-num); font-weight: 600; font-size: clamp(44px, 5.6vw, 68px);
+  line-height: 1; color: var(--flip-digit); font-variant-numeric: tabular-nums; }
+.flip-half.top .d { transform: translateY(0); }
+.flip-half.bottom .d { transform: translateY(-50%); }
+
+@keyframes flipFall {
+  from { transform: rotateX(0deg); filter: brightness(1); }
+  60%  { filter: brightness(1.25); }
+  to   { transform: rotateX(-180deg); filter: brightness(0.72); }
+}
+.flipping .flip-half.top-new {
+  animation: flipFall 0.28s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+  transform-origin: bottom center;
+  z-index: 3;
+}
+.flip-card { perspective: 500px; }
+
+.flip-caption {
+  font-size: 12px;
+  letter-spacing: 0.42em;
+  padding-left: 0.42em;
+  color: rgba(245, 240, 232, 0.42);
+}
+
+/* ============================================
+   特性网格
+   ============================================ */
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 44px;
+}
+
+@media (max-width: 900px) { .grid-3 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 620px) { .grid-3 { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 28px 26px 26px;
+  transition: transform var(--d-fast) var(--ease-out), border-color var(--d-fast) var(--ease-std);
+}
+.card:hover { transform: translateY(-2px); border-color: var(--ink-3); }
+section.alt .card { background: var(--bg); }
+
+.card .glyph {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+}
+.card .glyph svg { width: 22px; height: 22px; stroke: var(--accent-deep); }
+
+.card h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 19px;
+  margin-bottom: 8px;
+}
+
+.card p { font-size: 15px; color: var(--ink-3); }
+
+/* ============================================
+   截图展示
+   ============================================ */
+.show-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  margin-top: 20px;
+}
+@media (max-width: 900px) { .show-grid { grid-template-columns: 1fr; } }
+
+.shot {
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 70px -35px rgba(20, 20, 19, 0.35);
+  overflow: hidden;
+  background: var(--bg-alt);
+}
+.shot img { display: block; width: 100%; height: auto; }
+
+.shot-row { display: flex; gap: 18px; }
+.shot-row .shot { flex: 1; }
+
+@media (max-width: 560px) { .shot-row { flex-direction: column; } }
+
+ul.points { list-style: none; margin-top: 22px; display: grid; gap: 12px; }
+
+ul.points li {
+  position: relative;
+  padding-left: 20px;
+  color: var(--ink-2);
+  font-size: 16px;
+}
+ul.points li::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 11px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ============================================
+   下载区
+   ============================================ */
+.download-box {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--bg);
+  padding: clamp(36px, 5vw, 60px);
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: clamp(28px, 5vw, 56px);
+  align-items: center;
+}
+@media (max-width: 860px) { .download-box { grid-template-columns: 1fr; } }
+
+.steps { list-style: none; display: grid; gap: 14px; counter-reset: step; }
+
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 44px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0; top: 1px;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--bg-alt);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-num);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-deep);
+}
+
+.fineprint { margin-top: 20px; font-size: 13px; color: var(--ink-3); line-height: 1.8; }
+.fineprint code {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+/* ============================================
+   页脚
+   ============================================ */
+footer {
+  border-top: 1px solid var(--line);
+  background: var(--bg-alt);
+  padding: 44px 0 52px;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.foot a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--line); }
+.foot a:hover { color: var(--accent-deep); border-color: var(--accent-deep); }
+</style>
+</head>
+<body>
+
+<!-- ================= 导航 ================= -->
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top" aria-label="番茄钟首页">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="36" r="24" fill="#d97757"/>
+        <path d="M32 14 L36 5" stroke="#b4532a" stroke-width="4.5" stroke-linecap="round"/>
+        <ellipse cx="21" cy="13" rx="10" ry="4.4" fill="#7a968d" transform="rotate(38 21 13)"/>
+        <ellipse cx="42" cy="11" rx="10" ry="4.4" fill="#7a968d" transform="rotate(-30 42 11)"/>
+        <path d="M32 37 L22.5 28.5" stroke="#f6f3ec" stroke-width="5.5" stroke-linecap="round"/>
+        <path d="M32 37 L40.5 21.5" stroke="#f6f3ec" stroke-width="4.4" stroke-linecap="round"/>
+      </svg>
+      <span class="name">番茄钟</span>
+    </a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="#features">特性</a>
+      <a href="#stats">统计</a>
+      <a href="#clock">翻页时钟</a>
+      <a class="nav-cta" href="https://github.com/5777-wq/pomodoro" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ================= Hero ================= -->
+<section class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="kicker" data-reveal>开源 · 免费 · 纯本地</p>
+      <h1 data-reveal style="--i:1">专注的时候，<br>连时间都<em>该翻页</em>。</h1>
+      <p class="sub" data-reveal style="--i:2">
+        一枚 4MB 的安卓番茄钟。到点提醒精确到秒，统计有折线、饼图、热图，
+        还有一面全屏的黑色翻页时钟。不需要注册，不需要联网，数据只属于你。
+      </p>
+      <div class="cta-row" data-reveal style="--i:3">
+        <a class="btn btn-primary" href="https://github.com/5777-wq/pomodoro/releases/latest/download/pomodoro-android.apk">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+          下载 APK
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/5777-wq/pomodoro" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5A11.5 11.5 0 0 0 .5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55v-2.17c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.02 1.76 2.69 1.25 3.34.96.1-.75.4-1.25.73-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.66.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.55A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg>
+          GitHub 源码
+        </a>
+      </div>
+      <p class="hero-note" data-reveal style="--i:4">
+        <b>v2.3</b> · Android 8.0+ · MIT 协议 · 数据不出设备
+      </p>
+    </div>
+
+    <!-- 迷你翻页时钟：走的就是 app 里那套动画 -->
+    <div class="flip-stage" data-reveal style="--i:2" role="img" aria-label="翻页时钟演示，显示当前时间">
+      <div class="flip-row" id="flipDemo">
+        <div class="flip-card" data-slot="h1"><span class="d">0</span></div>
+        <div class="flip-card" data-slot="h2"><span class="d">0</span></div>
+        <span class="flip-colon">:</span>
+        <div class="flip-card" data-slot="m1"><span class="d">0</span></div>
+        <div class="flip-card" data-slot="m2"><span class="d">0</span></div>
+      </div>
+      <div class="flip-caption">FLIP · CLOCK</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 特性 ================= -->
+<section class="alt" id="features">
+  <div class="wrap">
+    <p class="kicker" data-reveal>为什么是它</p>
+    <h2 data-reveal style="--i:1">把该做好的做好，<br>其他的一概不做。</h2>
+    <p class="lead" data-reveal style="--i:2">没有账号体系，没有社交，没有广告，也没有"开通会员解锁"。它只回答一个问题：这 25 分钟，你专注了吗。</p>
+
+    <div class="grid-3">
+      <div class="card" data-reveal style="--i:0">
+        <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 0-10-10"/><path d="M12 12l4-4"/><path d="M22 12A10 10 0 0 0 12 2"/><path d="M2 22l3.5-3.5"/></svg></div>
+        <h3>到点提醒，精确到秒</h3>
+        <p>专注开始那一刻就向系统注册精确闹钟（setAlarmClock），Doze 省电不迟到、不静默；锁屏全屏提醒，通知上直接「开始下一阶段」。</p>
+      </div>
+      <div class="card" data-reveal style="--i:1">
+        <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 2v4M16 2v4M3 10h18M8 15l3 3 5-6"/></svg></div>
+        <h3>多元统计图表</h3>
+        <p>趋势折线、任务占比饼图、任务排行、24 小时时段热图、星期分布——五种视角 × 7/30/90 天范围，每一次专注都会出现在最近记录里。</p>
+      </div>
+      <div class="card" data-reveal style="--i:2">
+        <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-5"/><path d="M12 3l7 4v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V7z"/></svg></div>
+        <h3>数据只在手机里</h3>
+        <p>不要任何网络权限，连 INTERNET 权限都没有。备份导出 JSON / Markdown，换机随时带走；恢复前自动留底，可回滚。</p>
+      </div>
+      <div class="card" data-reveal style="--i:3">
+        <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h9"/><circle cx="19" cy="18" r="3"/></svg></div>
+        <h3>任务随你定义</h3>
+        <p>添加、改名、删除、归档；给每个任务设专属专注时长与预估番茄数。不建任务也照常统计，记作「自由专注」。</p>
+      </div>
+      <div class="card" data-reveal style="--i:4">
+        <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <h3>全屏翻页时钟</h3>
+        <p>纯黑底机械翻页卡片，带中缝与翻落动画。计时中显示剩余时间，空闲时就是一面床头钟，屏幕常亮。</p>
+      </div>
+      <div class="card" data-reveal style="--i:5">
+        <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4M7 6v12M11 3v18M15 7v10M19 10v4"/></svg></div>
+        <h3>白噪音</h3>
+        <p>雨声、傍晚咖啡馆，全部由 WebAudio 实时合成，一个音频文件都不带。伴随专注自动播放，暂停即停。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 统计展示 ================= -->
+<section id="stats">
+  <div class="wrap">
+    <p class="kicker" data-reveal>看得见的坚持</p>
+    <h2 data-reveal style="--i:1">统计不该是谁的附庸，<br>它本身就是主页。</h2>
+    <div class="show-grid" style="margin-top:44px">
+      <div class="shot" data-reveal><img src="screenshots/stats.png" alt="统计页：目标环、本周柱状图、任务占比饼图" loading="lazy"></div>
+      <div>
+        <ul class="points" data-reveal style="--i:1">
+          <li>每日目标进度环 + 连续天数，先把今天的士气立起来</li>
+          <li>五种图表随时切换，7 / 30 / 90 天一键换范围</li>
+          <li>「最近记录」列出每一次专注——有没有建任务，都算数</li>
+          <li>文字洞察：最高效时段、活跃日均、本周 vs 上周</li>
+          <li>图表全部手写 SVG，零图表库，APK 依旧 4MB</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="show-grid" style="margin-top:clamp(40px,6vw,80px)">
+      <div>
+        <ul class="points" data-reveal>
+          <li>点任务名就地展开编辑器：名称、专注时长、预估、优先级</li>
+          <li>为某个任务专注，完成后自动 +1，超预估转青灰提示</li>
+          <li>删除、归档、勾选完成，一切由你说了算</li>
+          <li>优先级排序：要紧的永远在列表最上面</li>
+        </ul>
+      </div>
+      <div class="shot" data-reveal style="--i:1"><img src="screenshots/tasks.png" alt="任务页：行内编辑器" loading="lazy"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 翻页时钟 ================= -->
+<section class="alt" id="clock">
+  <div class="wrap show-grid">
+    <div class="shot" data-reveal><img src="screenshots/flipclock.png" alt="全屏翻页时钟" loading="lazy"></div>
+    <div>
+      <p class="kicker" data-reveal>床头钟</p>
+      <h2 data-reveal style="--i:1">夜里的时间，<br>就该这样翻页。</h2>
+      <p class="lead" data-reveal style="--i:2">点一下右上角，进入纯黑全屏。数字卡带着机械中缝翻落，OLED 屏幕上安静得像什么都没发生。计时模式显示剩余时间，空闲时显示当前时间。</p>
+      <ul class="points" data-reveal style="--i:3">
+        <li>点击任意处唤起退出钮，3 秒自动隐去</li>
+        <li>打开期间屏幕常亮，状态栏自动隐藏</li>
+        <li>尊重系统「减弱动效」设置</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 下载 ================= -->
+<section id="download">
+  <div class="wrap">
+    <p class="kicker" data-reveal>现在开始</p>
+    <h2 data-reveal style="--i:1">两分钟，装好你的第一个番茄。</h2>
+
+    <div class="download-box" data-reveal style="--i:2; margin-top:44px">
+      <div>
+        <a class="btn btn-primary" href="https://github.com/5777-wq/pomodoro/releases/latest/download/pomodoro-android.apk">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+          下载最新版 APK
+        </a>
+        <p class="fineprint">
+          也可以到 <a href="https://github.com/5777-wq/pomodoro/releases" target="_blank" rel="noopener" style="color:var(--accent-deep)">Releases 页</a>挑选历史版本，
+          或直接从源码构建：<code>git clone</code> → <code>npm install</code> → <code>npm run apk</code>
+        </p>
+      </div>
+      <ol class="steps">
+        <li>下载 APK 到手机（约 4MB）</li>
+        <li>点开安装，允许「来自未知来源」——因为不走应用商店</li>
+        <li>打开即用：先点「开始」，完成第一个番茄</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 页脚 ================= -->
+<footer>
+  <div class="wrap foot">
+    <span>番茄钟 · MIT License · 用 Capacitor 与原生 Web 手工打造</span>
+    <span>
+      <a href="https://github.com/5777-wq/pomodoro" target="_blank" rel="noopener">GitHub</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/5777-wq/pomodoro/releases" target="_blank" rel="noopener">下载</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+// 滚动浮现
+(function () {
+  var els = document.querySelectorAll('[data-reveal]');
+  if (!('IntersectionObserver' in window)) {
+    for (var i = 0; i < els.length; i++) els[i].classList.add('in');
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px' });
+  els.forEach(function (e) { io.observe(e); });
+})();
+
+// 迷你翻页时钟：与 app 同款的翻落动画，显示当前时间
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var cards = {};
+  document.querySelectorAll('#flipDemo [data-slot]').forEach(function (c) { cards[c.getAttribute('data-slot')] = c; });
+  var last = '';
+
+  function setCard(slot, ch, animate) {
+    var card = cards[slot];
+    if (!card) return;
+    var cur = card.getAttribute('data-ch') || '';
+    if (cur === ch) return;
+    card.setAttribute('data-ch', ch);
+    var front = card.querySelector('.d');
+    if (!animate || reduce || !cur) {
+      if (front) front.textContent = ch;
+      return;
+    }
+    // 旧页拆成静止的上下两半，新的上半页带着翻落动画盖下来
+    var halves = card.querySelectorAll('.flip-half');
+    for (var i = 0; i < halves.length; i++) halves[i].remove();
+    var topOld = document.createElement('span');
+    topOld.className = 'flip-half top';
+    topOld.innerHTML = '<span class="d"></span>';
+    topOld.querySelector('.d').textContent = cur;
+    var botOld = document.createElement('span');
+    botOld.className = 'flip-half bottom';
+    botOld.innerHTML = '<span class="d"></span>';
+    botOld.querySelector('.d').textContent = cur;
+    var topNew = document.createElement('span');
+    topNew.className = 'flip-half top-new';
+    topNew.innerHTML = '<span class="d"></span>';
+    topNew.querySelector('.d').textContent = ch;
+    card.appendChild(topOld); card.appendChild(botOld); card.appendChild(topNew);
+    if (front) front.textContent = ch;
+    card.classList.add('flipping');
+    setTimeout(function () {
+      card.classList.remove('flipping');
+      var hs = card.querySelectorAll('.flip-half');
+      for (var j = 0; j < hs.length; j++) hs[j].remove();
+    }, 320);
+  }
+
+  function tick() {
+    var now = new Date();
+    var s = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+    if (s === last) return;
+    setCard('h1', s[0], false);
+    setCard('h2', s[1], last && s.slice(0, 2) !== last.slice(0, 2));
+    setCard('m1', s[2], last && s.slice(0, 3) !== last.slice(0, 3));
+    setCard('m2', s[3], !!last);
+    last = s;
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

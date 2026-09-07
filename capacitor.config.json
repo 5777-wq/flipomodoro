@@ -1,0 +1,20 @@
+{
+  "appId": "com.fiftyseven.pomodoro",
+  "appName": "番茄钟",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#f0eee6"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon",
+      "iconColor": "#d97757"
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#f0eee6",
+      "overlaysWebView": false
+    }
+  }
+}

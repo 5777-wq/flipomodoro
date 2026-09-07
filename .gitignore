@@ -1,0 +1,21 @@
+# 依赖与构建产物
+node_modules/
+
+# Android 构建产物与本地配置（含本机 SDK 路径）
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/capacitor-cordova-android-plugins/
+android/app/src/main/assets/
+*.iml
+
+# IDE / 系统杂物
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 本地安全扫描工具目录（与项目无关）
+.mimosa/
