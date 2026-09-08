@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+
+        <!-- 前台常驻倒计时（防杀后台） -->
+        <service
+            android:name=".ForegroundTimerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="专注倒计时需要在前台持续显示剩余时间，属于计时器类应用的特殊用途" />
+        </service>
+
+        <!-- 常驻通知按钮 & 到点提醒闹钟 -->
+        <receiver
+            android:name=".FgsActionReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".AlertReceiver"
+            android:exported="false" />
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 阶段结束通知：Android 13+ 需要运行时申请 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      精确定时通知。
+      Capacitor 插件只声明了 SCHEDULE_EXACT_ALARM，但它在 Android 14 上
+      不会自动授予（实测 granted=false），用户得手动去设置里开，
+      否则到点通知可能被系统推迟甚至丢掉。
+      番茄钟属于"闹钟/计时器"这一类应用，符合 USE_EXACT_ALARM 的适用场景，
+      这个权限对 API 33+ 是自动授予的，不需要用户操作。
+    -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- 提示振动 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+      前台常驻服务：专注时提升进程优先级防杀后台，
+      通知栏同时显示实时倒计时。
+      specialUse 类型适配 Android 14+ 的前台服务类型强制声明；
+      番茄钟的常驻计时正属于官方文档中 "计时器类应用" 这一特殊用途场景。
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!--
+      到点提醒的全屏意图（锁屏全屏显示，闹钟类应用标准 UX）。
+      API 34+ 对闹钟/通话类应用默认授予，其余场景自动降级为横幅通知。
+    -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!--
+      往共享 Documents 目录写数据快照，供外部 agent 读取。
+      Android 10+ 用分区存储，写 Documents 不需要运行时权限；
+      下面这条只对 Android 9 及以下生效，用 maxSdkVersion 限定，
+      避免在新系统上多要一个用户看着可疑的权限。
+    -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <!-- 手机与平板都支持，且要求有触摸屏但不强制 -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+</manifest>

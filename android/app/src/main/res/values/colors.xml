@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 web 层设计令牌保持一致 -->
+    <color name="colorPrimary">#F0EEE6</color>       <!-- 暖米白，状态栏底色 -->
+    <color name="colorPrimaryDark">#E4E1D6</color>
+    <color name="colorAccent">#D97757</color>        <!-- 陶土橙 -->
+    <color name="splashBackground">#F0EEE6</color>
+</resources>

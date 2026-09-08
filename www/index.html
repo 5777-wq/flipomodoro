@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <!-- viewport-fit=cover 配合 CSS 的 safe-area-inset，适配刘海屏与手势条 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#f0eee6">
+  <title>番茄钟</title>
+  <link rel="stylesheet" href="css/style.css?v=6">
+</head>
+<body>
+  <!-- 屏幕阅读器实时播报阶段变化 -->
+  <div class="sr-only" role="status" aria-live="polite" id="srStatus"></div>
+
+  <main class="app" id="app">
+    <header class="topbar">
+      <div class="round-dots" id="roundDots" aria-label="本轮进度"></div>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="flipBtn" aria-label="全屏翻页时钟" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="settingsBtn" aria-label="设置" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="stage" aria-labelledby="phaseLabel">
+      <div class="dial-wrap">
+        <svg class="dial" viewBox="0 0 240 240" aria-hidden="true" focusable="false">
+          <circle class="dial-track" cx="120" cy="120" r="110"/>
+          <circle class="dial-fill" id="dialFill" cx="120" cy="120" r="110"/>
+        </svg>
+        <div class="dial-inner">
+          <div class="phase" id="phaseLabel">专注</div>
+          <div class="time" id="timeDisplay">25:00</div>
+          <div class="hint" id="hintLabel">准备开始</div>
+          <div class="active-task" id="activeTaskLabel">自由专注</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls">
+      <button class="btn btn-ghost" id="resetBtn" aria-label="重置当前计时">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M3 12a9 9 0 1 0 3-6.7M3 4.5V10h5.5"/>
+        </svg>
+      </button>
+
+      <button class="btn btn-primary" id="startBtn">开始</button>
+
+      <button class="btn btn-ghost" id="skipBtn" aria-label="跳到下一阶段">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M5 4l11 8-11 8V4zM19 4v16"/>
+        </svg>
+      </button>
+    </section>
+
+    <footer class="footer">
+      <span class="tally"><b id="todayCount">0</b> 个番茄 · 今日</span>
+      <span class="tally-sep">·</span>
+      <button class="link-btn" id="panelBtn" aria-haspopup="dialog">统计与任务</button>
+    </footer>
+  </main>
+
+  <!-- 统计与任务面板 -->
+  <div class="sheet-backdrop" id="panelBackdrop" hidden></div>
+  <div class="sheet sheet-tall" id="panel" role="dialog" aria-modal="true"
+       aria-labelledby="panelTitle" hidden>
+    <div class="sheet-head">
+      <h2 id="panelTitle">统计与任务</h2>
+      <button class="icon-btn" id="panelClose" aria-label="关闭统计与任务">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <!-- 分页切换 -->
+    <div class="tabs" role="tablist">
+      <button class="tab active" id="tabStats" role="tab" aria-selected="true">统计</button>
+      <button class="tab" id="tabTasks" role="tab" aria-selected="false">任务</button>
+      <button class="tab" id="tabData" role="tab" aria-selected="false">备份</button>
+    </div>
+
+    <!-- ============ 统计页 ============ -->
+    <section class="tab-page" id="pageStats" role="tabpanel">
+      <!-- 今日目标 -->
+      <div class="goal-row">
+        <div id="goalRingBox"></div>
+        <div class="goal-info">
+          <b id="goalTitle">今日目标</b>
+          <span id="goalDesc">还没开始</span>
+          <span class="goal-sub" id="goalStreak"></span>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-cell"><b id="statToday">0</b><span>今日番茄</span></div>
+        <div class="stat-cell"><b id="statMinutes">0</b><span>专注分钟</span></div>
+        <div class="stat-cell"><b id="statStreak">0</b><span>连续天数</span></div>
+      </div>
+
+      <h3 class="sub-head">本周</h3>
+      <div class="chart" id="weekChart" role="img" aria-label="本周每日完成的番茄数"></div>
+
+      <h3 class="sub-head">图表 <em>换着角度看数据</em></h3>
+      <div class="chip-row" id="chartTabs" role="tablist" aria-label="图表类型">
+        <button class="chip active" data-chart="trend" role="tab" aria-selected="true">趋势</button>
+        <button class="chip" data-chart="donut" role="tab" aria-selected="false">占比</button>
+        <button class="chip" data-chart="rank" role="tab" aria-selected="false">排行</button>
+        <button class="chip" data-chart="hours" role="tab" aria-selected="false">时段</button>
+        <button class="chip" data-chart="week" role="tab" aria-selected="false">星期</button>
+      </div>
+      <div class="chip-row chip-row-sm" id="rangeTabs" role="tablist" aria-label="统计范围">
+        <button class="chip chip-sm" data-range="7" role="tab" aria-selected="false">7 天</button>
+        <button class="chip chip-sm active" data-range="30" role="tab" aria-selected="true">30 天</button>
+        <button class="chip chip-sm" data-range="90" role="tab" aria-selected="false">90 天</button>
+      </div>
+      <div class="chart-box" id="mainChart"></div>
+      <p class="chart-note" id="chartNote"></p>
+
+      <h3 class="sub-head">洞察</h3>
+      <ul class="insight-list" id="insightList"></ul>
+
+      <h3 class="sub-head">最近记录 <em>每一次专注都会出现在这里</em></h3>
+      <ul class="detail-list" id="recentList">
+        <li class="empty-tip">完成的番茄会出现在这里</li>
+      </ul>
+    </section>
+
+    <!-- ============ 任务页 ============ -->
+    <section class="tab-page" id="pageTasks" role="tabpanel" hidden>
+      <form class="task-add" id="taskAddForm">
+        <input type="text" id="taskInput" placeholder="添加一个任务" maxlength="60"
+               autocomplete="off" aria-label="新任务名称">
+        <button type="submit" class="add-btn" aria-label="添加任务">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </form>
+
+      <div class="add-opts">
+        <label class="opt">
+          专注时长
+          <span class="stepper stepper-sm">
+            <button type="button" data-step="-5" data-target="newFocusMin" aria-label="减少专注时长">−</button>
+            <output id="newFocusMin">0</output>
+            <button type="button" data-step="5" data-target="newFocusMin" aria-label="增加专注时长">+</button>
+          </span>
+        </label>
+        <label class="opt">
+          预估番茄
+          <span class="stepper stepper-sm">
+            <button type="button" data-step="-1" data-target="newEstimate" aria-label="减少预估">−</button>
+            <output id="newEstimate">0</output>
+            <button type="button" data-step="1" data-target="newEstimate" aria-label="增加预估">+</button>
+          </span>
+        </label>
+        <label class="opt">
+          优先级
+          <select id="newPriority" aria-label="新任务优先级">
+            <option value="high">高</option>
+            <option value="normal" selected>普通</option>
+            <option value="low">低</option>
+          </select>
+        </label>
+      </div>
+
+      <ul class="task-list" id="taskList"></ul>
+      <p class="empty-tip" id="taskEmptyTip">没有任务时按「自由专注」计时。</p>
+
+      <div class="archive-head" id="archiveHead" hidden>
+        <h3 class="sub-head">已归档 <em id="archiveCount"></em></h3>
+        <button class="link-btn" id="toggleArchive">展开</button>
+      </div>
+      <ul class="task-list archived-list" id="archiveList" hidden></ul>
+    </section>
+
+    <!-- ============ 备份页 ============ -->
+    <section class="tab-page" id="pageData" role="tabpanel" hidden>
+      <p class="data-intro">
+        所有数据只存在你的手机里。定期导出一份 JSON 备份，
+        换手机或重装后可以从备份完整恢复。
+      </p>
+
+      <div class="panel-actions">
+        <button class="wide-btn primary" id="exportBtn">下载 JSON 备份</button>
+        <button class="wide-btn" id="exportMdBtn">下载 Markdown 报告</button>
+        <button class="wide-btn" id="importBtn">从备份恢复…</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+      </div>
+      <p class="empty-tip">恢复会覆盖当前数据，覆盖前会自动留一份底，出问题可从备份里找回。</p>
+    </section>
+  </div>
+
+  <!-- Toast：Back 键双击退出提示等 -->
+  <!-- 全屏翻页时钟：纯黑极简。默认隐藏，点右上角图标进入 -->
+  <div class="flipclock" id="flipclock" role="timer" aria-label="全屏时钟" hidden>
+    <button class="flip-mode icon-btn" id="flipMode" aria-label="切换时钟与倒计时显示">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M15 4h5v5M9 20H4v-5M20 9c-2.5-3-6.5-3-9 0M4 15c2.5 3 6.5 3 9 0"/>
+      </svg>
+    </button>
+    <button class="flip-exit icon-btn" id="flipExit" aria-label="退出全屏时钟">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+
+    <div class="flip-stack" id="flipStack"></div>
+    <div class="flip-sub" id="flipSub">专注</div>
+    <div class="flip-date" id="flipDate"></div>
+  </div>
+
+  <!-- Toast：Back 键双击退出提示等 -->
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- 设置面板 -->
+  <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+    <div class="sheet-head">
+      <h2 id="sheetTitle">设置</h2>
+      <button class="icon-btn" id="sheetClose" aria-label="关闭设置">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="field">
+      <label for="focusMin">专注时长</label>
+      <div class="stepper">
+        <button data-step="-1" data-target="focusMin" aria-label="减少专注时长">−</button>
+        <output id="focusMin">25</output>
+        <button data-step="1" data-target="focusMin" aria-label="增加专注时长">+</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="shortMin">短休息</label>
+      <div class="stepper">
+        <button data-step="-1" data-target="shortMin" aria-label="减少短休息时长">−</button>
+        <output id="shortMin">5</output>
+        <button data-step="1" data-target="shortMin" aria-label="增加短休息时长">+</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="longMin">长休息</label>
+      <div class="stepper">
+        <button data-step="-1" data-target="longMin" aria-label="减少长休息时长">−</button>
+        <output id="longMin">15</output>
+        <button data-step="1" data-target="longMin" aria-label="增加长休息时长">+</button>
+      </div>
+    </div>
+
+    <div class="field field-row">
+      <label for="soundToggle">提示音</label>
+      <input type="checkbox" id="soundToggle" class="switch" checked>
+    </div>
+
+    <div class="field field-row">
+      <label for="vibrateToggle">振动</label>
+      <input type="checkbox" id="vibrateToggle" class="switch" checked>
+    </div>
+
+    <div class="field field-row">
+      <label for="notifyToggle">后台通知提醒</label>
+      <input type="checkbox" id="notifyToggle" class="switch" checked>
+    </div>
+
+    <div class="field field-row">
+      <label for="noiseSelect">白噪音 <em>专注时自动播放</em></label>
+      <select id="noiseSelect" class="noise-select" aria-label="选择白噪音">
+        <option value="off">关闭</option>
+        <option value="rain">雨声</option>
+        <option value="cafe">咖啡馆</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="goalStepper">每日目标 <em>番茄数</em></label>
+      <div class="stepper" id="goalStepper">
+        <button data-step="-1" data-target="dailyGoal" aria-label="减少目标">−</button>
+        <output id="dailyGoal">8</output>
+        <button data-step="1" data-target="dailyGoal" aria-label="增加目标">+</button>
+      </div>
+    </div>
+
+    <div class="field field-row">
+      <label for="fgsToggle">常驻通知防杀 <em>通知栏显示倒计时</em></label>
+      <input type="checkbox" id="fgsToggle" class="switch" checked>
+    </div>
+
+    <p class="sheet-note" id="notifyNote">时长以分钟为单位，长按 +/− 可快速调整。</p>
+  </div>
+
+  <script src="js/store.js?v=6"></script>
+  <script src="js/charts.js?v=6"></script>
+  <script src="js/datalink.js?v=6"></script>
+  <script src="js/audio.js?v=6"></script>
+  <script src="js/noise.js?v=6"></script>
+  <script src="js/flipclock.js?v=6"></script>
+  <script src="js/native.js?v=6"></script>
+  <script src="js/timer.js?v=6"></script>
+  <script src="js/ui.js?v=6"></script>
+</body>
+</html>
