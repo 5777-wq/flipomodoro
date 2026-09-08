@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 app 背景同色的暖米白 -->
+    <color name="ic_launcher_background">#F0EEE6</color>
+</resources>
