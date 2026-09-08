@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  通知栏小图标：状态栏只取 alpha 通道，所以必须是纯白单色剪影，
+  任何彩色都会被系统抹平成白块。尺寸按 24dp 规范。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- 外圈 -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M12,4 a8,8 0 1 1 -0.01,0" />
+
+    <!-- 指针指向 12 点 -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M12,12 L12,7.5" />
+</vector>
